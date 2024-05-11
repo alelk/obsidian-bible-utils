@@ -1,0 +1,9 @@
+[**src/**.{kt,yaml,yml}]
+indent_size = 2
+indent_style = space
+max_line_length = 160
+
+[**.kts]
+indent_size = 2
+indent_style = space
+max_line_length = 160

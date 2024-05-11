@@ -1,0 +1,30 @@
+[versions]
+
+kotlin = "1.9.23"
+
+ktor = "2.3.10"
+
+kotest = "5.8.0"
+
+
+[libraries]
+
+# Ktor client https://ktor.io/docs/client-create-new-application.html
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" } # https://search.maven.org/artifact/io.ktor/ktor-client-core
+ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" } # https://search.maven.org/artifact/io.ktor/ktor-client-cio
+ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" } # https://search.maven.org/artifact/io.ktor/ktor-client-content-negotiation
+ktor-serialization-koilinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" } # https://search.maven.org/artifact/io.ktor/ktor-serialization-koilinx-json
+ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" } # https://search.maven.org/artifact/io.ktor/ktor-client-logging
+
+# Logging
+logback-classic = { module = "ch.qos.logback:logback-classic", version = "1.2.6" } # https://search.maven.org/artifact/ch.qos.logback/logback-classic
+
+# Test
+kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" } # https://search.maven.org/artifact/io.kotest/kotest-runner-junit5
+kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" } # https://search.maven.org/artifact/io.kotest/kotest-assertions-core
+kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" } # https://search.maven.org/artifact/io.kotest/kotest-property
+
+[plugins]
+
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" } # https://plugins.gradle.org/plugin/org.jetbrains.kotlin.jvm
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" } # https://plugins.gradle.org/plugin/org.jetbrains.kotlin.plugin.serialization
