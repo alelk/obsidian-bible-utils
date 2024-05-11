@@ -126,44 +126,51 @@ suspend fun main(args: Array<String>) {
   val hebrewTranslation = prop.getProperty("bible.translations.hebrew").trim()
 
   val targetLibraryFile = File("${prop.getProperty("output-path")}/bible-library.json")
-  val mainTranslationLibrary = File("${prop.getProperty("output-path")}/bible-library-main.json")
-  val hebrewTranslationLibrary = File("${prop.getProperty("output-path")}/bible-library-hebrew.json")
+  val mainLibraryFile = File("${prop.getProperty("output-path")}/bible-library-$mainTranslation.json")
+  val hebrewLibraryFile = File("${prop.getProperty("output-path")}/bible-library-$hebrewTranslation.json")
+  val hebrewTransliteratedLibraryFile = File("${prop.getProperty("output-path")}/bible-library-$hebrewTranslation-transliterated.json")
 
-  val library = loadLibrary(targetLibraryFile)
-    ?.also { println("Library loaded from ${targetLibraryFile.absolutePath}. Variants: ${it.booksInfoByBibleVariant.keys.joinToString(", ")}") }
-    ?: loadOrCreateLibrary(mainTranslationLibrary, bollsClient, mainTranslation)
-      .merge(loadOrCreateLibrary(hebrewTranslationLibrary, bollsClient, hebrewTranslation))
+  suspend fun loadOrCreateHebrewTransliteratedLibrary(): Bible {
+    val hebrewTransliteratedLib = loadLibrary(hebrewTransliteratedLibraryFile)
+    if (hebrewTransliteratedLib != null) return hebrewTransliteratedLib
+    val hebrewLib = loadOrCreateLibrary(hebrewLibraryFile, bollsClient, hebrewTranslation)
+    println("Perform hebrew transliteration...")
+    val booksInfo =
+      hebrewLib.booksInfoByBibleVariant[BibleTranslation(hebrewTranslation)]
+        ?: throw IllegalStateException("Hebrew translation $hebrewTranslation not found in the library $hebrewLibraryFile")
+    val transliteratedLibrary = hebrewLib.books.fold(hebrewLib) { lib, book ->
+      val bi = booksInfo.find { it.id == book.id } ?: throw IllegalStateException("No book info found for book ${book.id} in translation $hebrewTranslation")
+      val nextBook = measureTimedValue { transliteratorClient.addHebrewTransliteration(book, hebrewTranslation) }
+      println("Hebrew transliteration added to book ${book.id} (${bi.variant}, ${bi.name}). Time: ${nextBook.duration}")
+      lib.copy(
+        books = lib.books.map { if (it.id == book.id) nextBook.value else it }.sortedBy { it.id },
+        booksInfoByBibleVariant = lib.booksInfoByBibleVariant +
+          Pair(
+            BibleTranslation(hebrewTranslation),
+            (lib.booksInfoByBibleVariant[BibleTranslation(hebrewTranslation)] ?: emptyList()) + bi.copy(variant = BibleTransliteration(hebrewTranslation))
+          )
+      ).also { nextLib ->
+        val bkpFile = File("${prop.getProperty("output-path")}/bible-library-$hebrewTranslation-transliteration-backup.json")
+        println("Save library backup to ${bkpFile}...")
+        nextLib.saveLibrary(bkpFile)
+      }
+    }
+    println("Hebrew transliteration added. Save to $targetLibraryFile...")
+    transliteratedLibrary.saveLibrary(targetLibraryFile)
+    println("Transliterated library saved to ${targetLibraryFile.absolutePath}")
+    return transliteratedLibrary
+  }
 
   val transliterateHebrew = prop.getProperty("bible.translations.hebrew.transliterate").trim().toBoolean()
 
-  if (transliterateHebrew) {
-    println("Check hebrew transliteration...")
-    val booksInfo = library.booksInfoByBibleVariant[BibleTranslation(hebrewTranslation)]
-    if (booksInfo == null)
-      System.err.println("Hebrew translation $hebrewTranslation not found in the library.")
-    else if (library.booksInfoByBibleVariant[BibleTransliteration(hebrewTranslation)] != null)
-      println("Hebrew transliteration already exists in the library.")
-    else {
-      val transliteratedLibrary = library.books.fold(library) { acc, book ->
-        val bi = booksInfo.find { it.id == book.id } ?: throw IllegalStateException("No book info found for book ${book.id} in translation $hebrewTranslation")
-        val nextBook = measureTimedValue { transliteratorClient.addHebrewTransliteration(book, hebrewTranslation) }
-        println("Hebrew transliteration added to book ${book.id} (${bi.variant}, ${bi.name}). Time: ${nextBook.duration}")
-        acc.copy(
-          books = acc.books.map { if (it.id == book.id) nextBook.value else it }.sortedBy { it.id },
-          booksInfoByBibleVariant =
-          acc.booksInfoByBibleVariant + Pair(
-            BibleTranslation(hebrewTranslation),
-            (acc.booksInfoByBibleVariant[BibleTranslation(hebrewTranslation)] ?: emptyList()) + bi.copy(variant = BibleTransliteration(hebrewTranslation))
-          ).also {
-            val bkpFile = File("${prop.getProperty("output-path")}/bible-library-transliteration-backup.json")
-            println("Save library backup to ${bkpFile}...")
-            acc.saveLibrary(bkpFile)
-          }
-        )
-      }
-      println("Hebrew transliteration added. Save to $targetLibraryFile...")
-      transliteratedLibrary.saveLibrary(targetLibraryFile)
-      println("Transliterated library saved to ${targetLibraryFile.absolutePath}")
-    }
+  val library = measureTimedValue {
+    loadLibrary(targetLibraryFile)
+      ?.also { println("Library loaded from ${targetLibraryFile.absolutePath}. Variants: ${it.booksInfoByBibleVariant.keys.joinToString(", ")}") }
+      ?: loadOrCreateLibrary(mainLibraryFile, bollsClient, mainTranslation)
+        .merge(if (transliterateHebrew) loadOrCreateHebrewTransliteratedLibrary() else loadOrCreateLibrary(hebrewLibraryFile, bollsClient, hebrewTranslation))
   }
+
+  println("Library built (time: ${library.duration}). Save to ${targetLibraryFile.absolutePath}...")
+  library.value.saveLibrary(targetLibraryFile)
+  println("Library saved to ${targetLibraryFile.absolutePath}")
 }

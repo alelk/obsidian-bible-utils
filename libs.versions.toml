@@ -18,6 +18,7 @@ ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "k
 
 # Logging
 logback-classic = { module = "ch.qos.logback:logback-classic", version = "1.2.6" } # https://search.maven.org/artifact/ch.qos.logback/logback-classic
+kotlin-logging-jvm = { module = "io.github.microutils:kotlin-logging-jvm", version = "2.0.11" } # https://search.maven.org/artifact/io.github.microutils/kotlin-logging-jvm
 
 # Test
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" } # https://search.maven.org/artifact/io.kotest/kotest-runner-junit5
