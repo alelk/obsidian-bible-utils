@@ -1,3 +1,5 @@
+package io.github.alelk.obsidian_bible_utils.transliterator
+
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
@@ -20,8 +22,11 @@ class ALittleHebrewTranslatorClient(val sessionId: String) {
     defaultRequest {
       url("https://alittlehebrew.com/")
     }
+    engine {
+      maxConnectionsCount = 10
+    }
     install(Logging) {
-      level = LogLevel.ALL
+      level = LogLevel.INFO
     }
     install(ContentNegotiation) {
       json()

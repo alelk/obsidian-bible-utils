@@ -8,9 +8,18 @@ version = "1.0.0-SNAPSHOT"
 
 repositories {
   mavenCentral()
+  maven {
+    url = uri("https://maven.pkg.github.com/alelk/bolls-api-client")
+    credentials {
+      username = project.findProperty("gpr.user") as? String? ?: System.getenv("USERNAME") ?: "alelk"
+      password = project.findProperty("gpr.key") as? String? ?: System.getenv("TOKEN")
+    }
+  }
 }
 
 dependencies {
+  implementation("io.github.alelk.bolls-api-client:bolls-api-client:0.3.0")
+
   implementation(libs.ktor.client.core)
   implementation(libs.ktor.client.cio)
   implementation(libs.ktor.client.content.negotiation)
