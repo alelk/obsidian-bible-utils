@@ -56,7 +56,7 @@ class ALittleHebrewTranslatorClient(val sessionId: String) {
   @Serializable
   data class TranslationResult(val success: Boolean, val result: String? = null, val message: String? = null)
 
-  suspend fun getTranslation(text: String): String = withToken { token ->
+  suspend fun getTransliteration(text: String): String = withToken { token ->
     client.get("transliterate/get.php") {
       parameter("token", token)
       parameter("style", "230_russian")

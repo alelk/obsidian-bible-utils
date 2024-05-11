@@ -4,7 +4,7 @@ import io.github.alelk.obsidian_bible_utils.model.serialization.BibleVariantSeri
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class Bible(val books: List<Book>, val bookInfoByBibleVariant: Map<BibleVariant, BookInfo>)
+data class Bible(val books: List<Book>, val booksInfoByBibleVariant: Map<BibleVariant, List<BookInfo>>)
 
 fun Bible.merge(other: Bible): Bible {
   fun List<Book>.merge(other: List<Book>): List<Book> {
@@ -14,8 +14,14 @@ fun Bible.merge(other: Bible): Bible {
       books.reduce(Book::merge)
     }.sortedBy { it.id }
   }
+
+  val nextBookInfo = (booksInfoByBibleVariant.keys + other.booksInfoByBibleVariant.keys).associateWith { variant ->
+    ((booksInfoByBibleVariant[variant] ?: emptyList()) + (other.booksInfoByBibleVariant[variant] ?: emptyList()))
+      .distinct()
+      .sortedBy { it.id }
+  }
   return kotlin.runCatching {
-    Bible(books.merge(other.books), bookInfoByBibleVariant + other.bookInfoByBibleVariant)
+    Bible(books.merge(other.books), nextBookInfo)
   }.onFailure { e -> throw UnsupportedOperationException("Error merging books: ${e.message}", e) }.getOrThrow()
 }
 
