@@ -1,9 +1,9 @@
 package md_builder
 
 import io.github.alelk.obsidian_bible_utils.md_builder.DefinitionPart
-import io.github.alelk.obsidian_bible_utils.md_builder.DictReference
 import io.github.alelk.obsidian_bible_utils.md_builder.parseDictionaryDefinition
 import io.github.alelk.obsidian_bible_utils.model.DictDefinition
+import io.github.alelk.obsidian_bible_utils.md_builder.DictReference
 import io.kotest.core.spec.style.FeatureSpec
 import io.kotest.matchers.shouldBe
 

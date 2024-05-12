@@ -32,7 +32,9 @@ fun Bible.merge(other: Bible, strict: Boolean = true): Bible {
 data class BookInfo(val id: Int, val name: String, val variant: BibleVariant)
 
 @Serializable
-data class Book(val id: Int, val chapters: List<Chapter>)
+data class Book(val id: Int, val chapters: List<Chapter>, val attrs: Map<String, String> = emptyMap()) {
+  fun withAttr(attr: Pair<String, String>): Book = copy(attrs = attrs + attr)
+}
 
 fun Book.merge(other: Book, strict: Boolean = true): Book {
   require(id == other.id) { "Book ids are not equal: $id != ${other.id}" }
@@ -51,13 +53,18 @@ fun Book.merge(other: Book, strict: Boolean = true): Book {
     Book(id, chapters.merge(other.chapters))
   }.recover { e ->
     if (strict) throw UnsupportedOperationException("Error merging books $id: ${e.message}", e)
-    else log.warn { "Error merging books $id: ${e.message}. Skip merging." }
-    this
+    else {
+      val msg = "Error merging books $id: ${e.message}. Skip merging."
+      log.warn { msg }
+      this.withAttr("error" to msg)
+    }
   }.getOrThrow()
 }
 
 @Serializable
-data class Chapter(val number: Int, val verses: List<Verse>)
+data class Chapter(val number: Int, val verses: List<Verse>, val attrs: Map<String, String> = emptyMap()) {
+  fun withAttr(attr: Pair<String, String>): Chapter = copy(attrs = attrs + attr)
+}
 
 fun Chapter.merge(other: Chapter, strict: Boolean = true): Chapter {
   require(number == other.number) { "Chapter numbers are not equal: $number != ${other.number}" }
@@ -78,8 +85,11 @@ fun Chapter.merge(other: Chapter, strict: Boolean = true): Chapter {
     Chapter(number, verses.merge(other.verses))
   }.recover { e ->
     if (strict) throw UnsupportedOperationException("Error merging chapters $number: ${e.message}", e)
-    else log.warn { "Error merging chapters $number: ${e.message}. Skip merging." }
-    this
+    else {
+      val msg = "Error merging chapters $number: ${e.message}. Skip merging."
+      log.warn { msg }
+      this.withAttr("error" to msg)
+    }
   }.getOrThrow()
 }
 
@@ -103,7 +113,7 @@ sealed interface BibleVariant {
 }
 
 @Serializable
-data class Verse(val number: Int, val text: Map<BibleVariant, Data>) {
+data class Verse(val number: Int, val text: Map<BibleVariant, Data>, val attrs: Map<String, String> = emptyMap()) {
 
   @Serializable
   data class Data(val text: String, val comment: String? = null)
@@ -112,4 +122,6 @@ data class Verse(val number: Int, val text: Map<BibleVariant, Data>) {
     require(number == other.number) { "Verse numbers are not equal: $number != ${other.number}" }
     return Verse(number, text + other.text)
   }
+
+  fun withAttr(attr: Pair<String, String>): Verse = copy(attrs = attrs + attr)
 }

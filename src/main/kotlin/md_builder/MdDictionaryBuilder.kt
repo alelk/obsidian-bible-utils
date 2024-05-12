@@ -44,13 +44,11 @@ sealed interface DefinitionPart {
 
 private val referenceRegex = Regex("""<a href='S:(?<reference>[HG]\d+)'>(?<text>[\w\s\p{L}\p{InCombiningDiacriticalMarks}\u0590-\u05fe]*)</a>""")
 
-data class DictReference(val link: String, val text: String? = null)
 
 fun String.replaceDictReferences(dictReference: (refTopic: DictDefinition.Topic) -> DictReference) =
   referenceRegex.replace(this) { matchResult ->
     val ref = dictReference(DictDefinition.Topic.parse(matchResult.groups["reference"]!!.value))
-    val text = ref.text ?: matchResult.groups["text"]!!.value
-    """[${text}](${ref.link})"""
+    ref.toMdLink(text = ref.text ?: matchResult.groups["text"]!!.value)
   }
 
 fun String.parseDictionaryDefinition(dictReference: (refTopic: DictDefinition.Topic) -> DictReference) =
