@@ -1,4 +1,4 @@
-package io.github.alelk.obsidian_bible_utils.transliterator
+package io.github.alelk.obsidian_bible_utils.client
 
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -15,22 +15,25 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import mu.KotlinLogging
+
+private val log = KotlinLogging.logger { }
 
 class ALittleHebrewTranslatorClient(val sessionId: String) {
 
   val client = HttpClient(CIO) {
-    defaultRequest {
-      url("https://alittlehebrew.com/")
-    }
-    engine {
-      maxConnectionsCount = 10
-    }
-    install(Logging) {
-      level = LogLevel.INFO
-    }
-    install(ContentNegotiation) {
-      json()
-    }
+      defaultRequest {
+          url("https://alittlehebrew.com/")
+      }
+      engine {
+          maxConnectionsCount = 10
+      }
+      install(Logging) {
+          level = LogLevel.NONE
+      }
+      install(ContentNegotiation) {
+          json()
+      }
   }
 
   suspend fun getToken() =
@@ -45,12 +48,13 @@ class ALittleHebrewTranslatorClient(val sessionId: String) {
   private var token: Deferred<String>? = null
 
   suspend fun <T> withToken(block: suspend (String) -> T): T = coroutineScope {
-    val t = tokenMutex.withLock { token ?: async { getToken() }.also { token = it } }.await()
-    runCatching {
-      block(t)
-    }.onFailure {
-      tokenMutex.withLock { token = null }
-    }.getOrThrow()
+      val t = tokenMutex.withLock { token ?: async { getToken() }.also { token = it } }.await()
+      runCatching {
+          block(t)
+      }.onFailure { e ->
+          log.warn { "Error occurred: ${e.message}" }
+          tokenMutex.withLock { token = null }
+      }.getOrThrow()
   }
 
   @Serializable
