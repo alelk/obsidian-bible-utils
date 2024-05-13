@@ -65,9 +65,13 @@ suspend fun main(args: Array<String>) {
   log.info { "Load dictionary from ${dictFile.absolutePath}..." }
   val dict = loadTransliteratedDictionary(dictFile) ?: throw UnsupportedOperationException("No dict found: ${dictFile.absolutePath}")
 
+  val errors = mutableListOf<String>()
   val dictReference = { refTopic: DictDefinition.Topic ->
     val def = dict.definitions.find { it.topic == refTopic }
-    if (def != null) MdReference(def.fileName, def.transliterations[0]) else null
+    if (def != null) MdReference(def.fileName, def.transliterations[0]) else {
+      errors.add("No definition found for topic $refTopic")
+      null
+    }
   }
 
   val mdBibleDir = File("${prop.getProperty("output-path")}/Bible/")
@@ -78,5 +82,8 @@ suspend fun main(args: Array<String>) {
     log.info { "Build markdown for book ${book.name}..." }
     book.save(mdBibleDir)
     log.info { "Book ${book.name} saved to ${mdBibleDir.absolutePath}" }
+  }
+  errors.distinct().forEach {
+    log.warn { it }
   }
 }

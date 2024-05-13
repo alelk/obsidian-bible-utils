@@ -21,9 +21,7 @@ fun Bible.toMd(
       MdBook(
         name = bookInfo.name,
         chapters = book.chapters.sortedBy { it.number }.map { chapter ->
-          // fixme: store dict language in book info
-          val t = if (bookInfo.variant == BibleVariant.Translation("TISCH")) DictDefinition.TopicType.GREEK else DictDefinition.TopicType.HEBREW
-          val chapterBody = chapter.toMdBody(mainTranslation, t, dictRef)
+          val chapterBody = chapter.toMdBody(mainTranslation, dictRef)
           val chapterText = buildString {
             appendLine("---")
             appendLine("type: bible")
@@ -42,7 +40,7 @@ fun Bible.toMd(
             val nextChapter = book.chapters.find { it.number == chapter.number + 1 }
             listOfNotNull(prevChapter, nextChapter).forEach { c ->
               val chapterName = "${bookInfo.name} ${c.number}"
-              appendLine("[[$chapterName|${chapterName}.md]]")
+              appendLine("[[$chapterName|${chapterName}]]")
             }
             appendLine()
             appendLine("#bible #bible_chapter #generated #unchanged")
@@ -54,14 +52,12 @@ fun Bible.toMd(
 
 fun Chapter.toMdBody(
   mainTranslation: BibleVariant.Translation,
-  topicType: DictDefinition.TopicType,
   dictReference: (refTopic: DictDefinition.Topic) -> MdReference?
 ): String =
-  verses.mapNotNull { it.toMd(mainTranslation, topicType, dictReference) }.joinToString("\n\n")
+  verses.mapNotNull { it.toMd(mainTranslation, dictReference) }.joinToString("\n\n")
 
 fun Verse.toMd(
   mainTranslation: BibleVariant.Translation,
-  topicType: DictDefinition.TopicType,
   dictReference: (refTopic: DictDefinition.Topic) -> MdReference?
 ): String? {
   val mainTranslationText = this.text[mainTranslation] ?: return null
@@ -71,11 +67,15 @@ fun Verse.toMd(
     appendLine()
     val otherTranslations = text.filterNot { it.key == mainTranslation }
     val transliterations = otherTranslations.filter { it.key is BibleVariant.Transliteration }
-    (otherTranslations - transliterations.keys).values.forEach {
-      appendLine("> ${it.text.skipStrongNumbers()}")
+    (otherTranslations - transliterations.keys).forEach { (t, v) ->
+      // fixme: store dict language in book info
+      if (t is BibleVariant.Translation && t.translationSlug == "TISCH")
+        appendLine("> ${v.text.transliterationToMd(DictDefinition.TopicType.GREEK, dictReference, useWikiLinks = true)}")
+      else
+        appendLine("> ${v.text.skipStrongNumbers()}")
     }
     transliterations.forEach {
-      appendLine("> ${it.value.text.transliterationToMd(topicType, dictReference, useWikiLinks = true)}")
+      appendLine("> ${it.value.text.transliterationToMd(DictDefinition.TopicType.HEBREW, dictReference, useWikiLinks = true)}")
     }
   }
 }

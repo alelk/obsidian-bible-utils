@@ -47,10 +47,23 @@ data class MdDictDefinition(
 
       val category = definition.find<DefinitionPart.Category>()?.text?.trim()
       val partOfSpeech = definition.find<DefinitionPart.PartOfSpeech>()?.text?.trim()
+      val lexeme = definition.find<DefinitionPart.HebrewText>()?.text ?: definition.find<DefinitionPart.GreekText>()?.text ?: lexeme
+      val pronunciation = listOfNotNull(definition.find<DefinitionPart.Pronunciation>()?.text, pronunciation).distinct()
+      val transliteration = listOfNotNull(*transliterations.toTypedArray(), definition.find<DefinitionPart.Transliteration>()?.text).distinct()
+
+      appendLine("---")
+      pronunciation.firstOrNull()?.let { appendLine("pronunciation: $it") }
+      transliteration.firstOrNull()?.let { appendLine("transliteration: $it") }
+      appendLine("shortDefinition: $shortDefinition")
+      appendLine("category: $category")
+      appendLine("partOfSpeech: $partOfSpeech")
+      appendLine("lexeme: $lexeme")
+      appendLine("type: dictionary")
+      appendLine("key: $topic")
+      appendLine("---")
 
       appendLine("### $topic: $shortDefinition")
       appendLine()
-      val lexeme = definition.find<DefinitionPart.HebrewText>()?.text ?: definition.find<DefinitionPart.GreekText>() ?: lexeme
       appendLine("> $lexeme")
       appendLine()
 
@@ -65,12 +78,10 @@ data class MdDictDefinition(
       }
 
       appendLine("###### Произношение")
-      val pronunciation = listOfNotNull(definition.find<DefinitionPart.Pronunciation>()?.text, pronunciation).distinct()
       pronunciation.forEach { appendLine("- $it") }
       appendLine()
 
       appendLine("###### Транслитерация")
-      val transliteration = listOfNotNull(definition.find<DefinitionPart.Transliteration>()?.text, *transliterations.toTypedArray()).distinct()
       transliteration.forEach { appendLine("- $it") }
       appendLine()
 
@@ -112,7 +123,7 @@ sealed interface DefinitionPart {
   data class Etymology(val text: String) : DefinitionPart
   data class Synonyms(val text: String) : DefinitionPart
   data class Category(val text: String) : DefinitionPart
-  data class Text(val text: String) : DefinitionPart
+  data class Text(val text: String = "") : DefinitionPart
 }
 
 inline fun <reified D : DefinitionPart> List<DefinitionPart>.find(): D? = find { it is D } as? D
@@ -138,24 +149,39 @@ fun String.replaceReferences(linkProvider: MdLinkProvider) =
   }
 
 fun String.parseDictionaryDefinition(linkProvider: MdLinkProvider) =
-  this.split("<br/>").map { it.trim() }
+  this
+    .split("<br/>")
+    .flatMap {
+      it.replace(Regex("(?<pre>\\S+)<df>(?<text>(?!</df>).*)</df>")) { matchResult ->
+        val pre = matchResult.groups["pre"]!!.value
+        val text = matchResult.groups["text"]!!.value
+        "$pre\n<df>${text}</df>"
+      }.split("\n")
+    }
+    .map { it.trim() }
     .map { line ->
-      Regex("^<he>(?<hebrewText>.*)</he>$").matchEntire(line)?.let { DefinitionPart.HebrewText(it.groups["hebrewText"]!!.value) }
-        ?: Regex("^<el>(?<greekText>.*)</el>$").matchEntire(line)?.let { DefinitionPart.GreekText(it.groups["greekText"]!!.value) }
+      Regex("^<he>(?<hebrewText>.*)</he>$").matchEntire(line)?.let { DefinitionPart.HebrewText(it.groups["hebrewText"]!!.value.trim()) }
+        ?: Regex("^<el>(?<greekText>.*)</el>$").matchEntire(line)?.let { DefinitionPart.GreekText(it.groups["greekText"]!!.value.trim()) }
         ?: Regex("""^<df>\s*Оригинал:\s*</df>\s*<b>\s*(?<originalText>.*)\s*</b>$""")
-          .matchEntire(line)?.let { DefinitionPart.OriginalText(it.groups["originalText"]!!.value) }
+          .matchEntire(line)?.let { DefinitionPart.OriginalText(it.groups["originalText"]!!.value.trim()) }
         ?: Regex("""^<df>\s*Произношение:\s*</df>\s*<b>\s*(?<pronunciation>.*)\s*</b>$""")
-          .matchEntire(line)?.let { DefinitionPart.Pronunciation(it.groups["pronunciation"]!!.value) }
+          .matchEntire(line)?.let { DefinitionPart.Pronunciation(it.groups["pronunciation"]!!.value.trim()) }
         ?: Regex("""^<df>\s*Транслитерация:\s*</df>\s*<b>\s*(?<transliteration>.*)\s*</b>$""")
-          .matchEntire(line)?.let { DefinitionPart.Transliteration(it.groups["transliteration"]!!.value) }
+          .matchEntire(line)?.let { DefinitionPart.Transliteration(it.groups["transliteration"]!!.value.trim()) }
         ?: Regex("""^<df>\s*Часть речи:\s*</df>\s*(?<partOfSpeech>.*)\s*$""")
-          .matchEntire(line)?.let { DefinitionPart.PartOfSpeech(it.groups["partOfSpeech"]!!.value) }
+          .matchEntire(line)?.let { DefinitionPart.PartOfSpeech(it.groups["partOfSpeech"]!!.value.trim()) }
         ?: Regex("""^<df>\s*Этимология:\s*</df>\s*(?<etymology>.*)\s*$""")
           .matchEntire(line)?.let { DefinitionPart.Etymology(it.groups["etymology"]!!.value.replaceReferences(linkProvider)) }
         ?: Regex("""^<df>\s*Синонимы:\s*</df>\s*(?<synonyms>.*)\s*$""")
           .matchEntire(line)?.let { DefinitionPart.Synonyms(it.groups["synonyms"]!!.value.replaceReferences(linkProvider)) }
         ?: Regex("""^<df>\s*Категория:\s*</df>\s*(?<category>.*)\s*$""")
-          .matchEntire(line)?.let { DefinitionPart.Category(it.groups["category"]!!.value) }
+          .matchEntire(line)?.let { DefinitionPart.Category(it.groups["category"]!!.value.trim()) }
+        ?: Regex("""^<df>\s*(?<key>(?!</df>).*)\s*</df>\s*(?<definition>.*)\s*${'$'}""")
+          .matchEntire(line)?.let {
+            val key = it.groups["key"]!!.value
+            val definition = it.groups["definition"]!!.value.replaceReferences(linkProvider)
+            DefinitionPart.Text("**$key** $definition")
+          }
         ?: DefinitionPart.Text(line.replaceReferences(linkProvider))
     }
 
