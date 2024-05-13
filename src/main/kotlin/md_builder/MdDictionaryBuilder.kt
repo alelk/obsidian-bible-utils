@@ -41,17 +41,17 @@ data class MdDictDefinition(
 
   val key: String = "$shortDefinition (${transliterations[0]})"
 
-  fun toMd(dictReference: (refTopic: DictDefinition.Topic, from: MdDictDefinition) -> DictReference?): String =
+  fun toMd(mdLinkProvider: MdLinkProvider): String =
     buildString {
-      val definition = definition.parseDictionaryDefinition { refTopic -> dictReference(refTopic, this@MdDictDefinition) }
+      val definition = definition.parseDictionaryDefinition(mdLinkProvider)
 
       val category = definition.find<DefinitionPart.Category>()?.text?.trim()
       val partOfSpeech = definition.find<DefinitionPart.PartOfSpeech>()?.text?.trim()
 
       appendLine("### $topic: $shortDefinition")
       appendLine()
-      val hebrewText = definition.find<DefinitionPart.HebrewText>()?.text ?: lexeme
-      appendLine("> $hebrewText")
+      val lexeme = definition.find<DefinitionPart.HebrewText>()?.text ?: definition.find<DefinitionPart.GreekText>() ?: lexeme
+      appendLine("> $lexeme")
       appendLine()
 
       if (partOfSpeech != null) {
@@ -65,8 +65,13 @@ data class MdDictDefinition(
       }
 
       appendLine("###### Произношение")
-      val pronunciation = listOfNotNull(definition.find<DefinitionPart.Pronunciation>()?.text, pronunciation, *transliterations.toTypedArray()).distinct()
+      val pronunciation = listOfNotNull(definition.find<DefinitionPart.Pronunciation>()?.text, pronunciation).distinct()
       pronunciation.forEach { appendLine("- $it") }
+      appendLine()
+
+      appendLine("###### Транслитерация")
+      val transliteration = listOfNotNull(definition.find<DefinitionPart.Transliteration>()?.text, *transliterations.toTypedArray()).distinct()
+      transliteration.forEach { appendLine("- $it") }
       appendLine()
 
       definition.forEach { part ->
@@ -93,14 +98,16 @@ data class MdDictDefinition(
 
       appendLine()
       appendLine("---")
-      appendLine("#dictionary #dictionary_definition #generated #unchanged")
+      appendLine("#dictionary #${topic.type.name.lowercase()} #dictionary_definition #generated #unchanged")
     }
 }
 
 sealed interface DefinitionPart {
   data class HebrewText(val text: String) : DefinitionPart
+  data class GreekText(val text: String) : DefinitionPart
   data class OriginalText(val text: String) : DefinitionPart
   data class Pronunciation(val text: String) : DefinitionPart
+  data class Transliteration(val text: String) : DefinitionPart
   data class PartOfSpeech(val text: String) : DefinitionPart
   data class Etymology(val text: String) : DefinitionPart
   data class Synonyms(val text: String) : DefinitionPart
@@ -110,32 +117,45 @@ sealed interface DefinitionPart {
 
 inline fun <reified D : DefinitionPart> List<DefinitionPart>.find(): D? = find { it is D } as? D
 
-private val referenceRegex = Regex("""<a href='S:(?<reference>[HG]\d+)'>(?<text>[\w\s\p{L}\p{InCombiningDiacriticalMarks}\u0590-\u05fe]*)</a>""")
+private val dictRefRegex = Regex("""<a\s+href\s*=\s*'S:(?<reference>[HG]\d+)'\s*>(?<text>[\w\s\p{L}\p{InCombiningDiacriticalMarks}\u0590-\u05fe]*)</a>""")
+private val bibleRefRegex =
+  Regex("""<a\s+href\s*=\s*'B:(?<bookId>\d+)\s+(?<chapter>\d+):(?<verse>\d+)'\s*>(?<text>[\w\s\p{L}\p{InCombiningDiacriticalMarks}\u0590-\u05fe:.]{0,30})</a>""")
 
 
-fun String.replaceDictReferences(dictReference: (refTopic: DictDefinition.Topic) -> DictReference?) =
-  referenceRegex.replace(this) { matchResult ->
-    val ref = dictReference(DictDefinition.Topic.parse(matchResult.groups["reference"]!!.value))
+fun String.replaceReferences(linkProvider: MdLinkProvider) =
+  this.replace(dictRefRegex) { matchResult ->
+    val ref = linkProvider.dictReference(DictDefinition.Topic.parse(matchResult.groups["reference"]!!.value))
     val text = ref?.text ?: matchResult.groups["text"]!!.value
+    ref?.toMdLink(text = text, wiki = true) ?: text
+  }.replace(bibleRefRegex) { matchResult ->
+    val bookId = matchResult.groups["bookId"]!!.value.toInt()
+    val chapter = matchResult.groups["chapter"]!!.value.toInt()
+    val verse = matchResult.groups["verse"]!!.value.toInt()
+    val originalText = matchResult.groups["text"]!!.value
+    val ref = linkProvider.bibleReference(bookId, chapter, verse, originalText)
+    val text = ref?.text ?: originalText
     ref?.toMdLink(text = text, wiki = true) ?: text
   }
 
-fun String.parseDictionaryDefinition(dictReference: (refTopic: DictDefinition.Topic) -> DictReference?) =
+fun String.parseDictionaryDefinition(linkProvider: MdLinkProvider) =
   this.split("<br/>").map { it.trim() }
     .map { line ->
       Regex("^<he>(?<hebrewText>.*)</he>$").matchEntire(line)?.let { DefinitionPart.HebrewText(it.groups["hebrewText"]!!.value) }
+        ?: Regex("^<el>(?<greekText>.*)</el>$").matchEntire(line)?.let { DefinitionPart.GreekText(it.groups["greekText"]!!.value) }
         ?: Regex("""^<df>\s*Оригинал:\s*</df>\s*<b>\s*(?<originalText>.*)\s*</b>$""")
           .matchEntire(line)?.let { DefinitionPart.OriginalText(it.groups["originalText"]!!.value) }
         ?: Regex("""^<df>\s*Произношение:\s*</df>\s*<b>\s*(?<pronunciation>.*)\s*</b>$""")
           .matchEntire(line)?.let { DefinitionPart.Pronunciation(it.groups["pronunciation"]!!.value) }
+        ?: Regex("""^<df>\s*Транслитерация:\s*</df>\s*<b>\s*(?<transliteration>.*)\s*</b>$""")
+          .matchEntire(line)?.let { DefinitionPart.Transliteration(it.groups["transliteration"]!!.value) }
         ?: Regex("""^<df>\s*Часть речи:\s*</df>\s*(?<partOfSpeech>.*)\s*$""")
           .matchEntire(line)?.let { DefinitionPart.PartOfSpeech(it.groups["partOfSpeech"]!!.value) }
         ?: Regex("""^<df>\s*Этимология:\s*</df>\s*(?<etymology>.*)\s*$""")
-          .matchEntire(line)?.let { DefinitionPart.Etymology(it.groups["etymology"]!!.value.replaceDictReferences(dictReference)) }
+          .matchEntire(line)?.let { DefinitionPart.Etymology(it.groups["etymology"]!!.value.replaceReferences(linkProvider)) }
         ?: Regex("""^<df>\s*Синонимы:\s*</df>\s*(?<synonyms>.*)\s*$""")
-          .matchEntire(line)?.let { DefinitionPart.Synonyms(it.groups["synonyms"]!!.value.replaceDictReferences(dictReference)) }
+          .matchEntire(line)?.let { DefinitionPart.Synonyms(it.groups["synonyms"]!!.value.replaceReferences(linkProvider)) }
         ?: Regex("""^<df>\s*Категория:\s*</df>\s*(?<category>.*)\s*$""")
           .matchEntire(line)?.let { DefinitionPart.Category(it.groups["category"]!!.value) }
-        ?: DefinitionPart.Text(line)
+        ?: DefinitionPart.Text(line.replaceReferences(linkProvider))
     }
 

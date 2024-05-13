@@ -3,14 +3,14 @@ package md_builder
 import io.github.alelk.obsidian_bible_utils.md_builder.skipStrongNumbers
 import io.github.alelk.obsidian_bible_utils.md_builder.transliterationToMd
 import io.github.alelk.obsidian_bible_utils.model.DictDefinition
-import io.github.alelk.obsidian_bible_utils.md_builder.DictReference
+import io.github.alelk.obsidian_bible_utils.md_builder.MdReference
 import io.kotest.core.spec.style.FeatureSpec
 import io.kotest.matchers.shouldBe
 
 class MdBibleBuilderTest : FeatureSpec({
 
   val dictReference = { refTopic: DictDefinition.Topic ->
-    DictReference("../Dict/${refTopic.type.signature}/${refTopic.number}", "Text ${refTopic.number}")
+    MdReference("../Dict/${refTopic.type.signature}/${refTopic.number}", "Text ${refTopic.number}")
   }
 
   feature("skip strong numbers") {
@@ -22,12 +22,16 @@ class MdBibleBuilderTest : FeatureSpec({
       "вайа́ас<S>6213</S> элои́м<S>430</S> э́т<S>853</S>аракиа́<S>7549</S> вайавдэ́л<S>914</S> бейн<S>996</S> ама́йим<S>4325</S> ашэ́р<S>834</S> мита́хат<S>8478</S> лараки́а<S>7549</S> увейн<S>996</S> ама́йим<S>4325</S> ашэ́р<S>834</S> мэа́л<S>5921</S> лараки́а<S>7549</S> ва́йи<S>1961</S>хэ́н.<S>3651</S>"
         .skipStrongNumbers() shouldBe "вайа́ас элои́м э́таракиа́ вайавдэ́л бейн ама́йим ашэ́р мита́хат лараки́а увейн ама́йим ашэ́р мэа́л лараки́а ва́йихэ́н."
     }
+    scenario("skip strong numbers from greek") {
+      "Βίβλος<S>976</S> γενέσεως<S>1078</S> Ἰησοῦ<S>2424</S> Χριστοῦ<S>5547</S> υἱοῦ<S>5207</S> Δαυεὶδ<S>1138</S> υἱοῦ<S>5207</S> Ἀβραάμ.<S>11</S>"
+        .skipStrongNumbers() shouldBe "Βίβλος γενέσεως Ἰησοῦ Χριστοῦ υἱοῦ Δαυεὶδ υἱοῦ Ἀβραάμ."
+    }
   }
 
   feature("convert transliteration to markdown") {
     scenario("convert hebrew text with strong numbers to markdown") {
       "וַיִּקְרָ֧א<S>7121</S> אֱלֹהִ֛ים<S>430</S> לָֽרָקִ֖יעַ<S>7549</S> שָׁמָ֑יִם<S>8064</S> וַֽיְהִי־<S>1961</S>עֶ֥רֶב<S>6153</S> וַֽיְהִי־<S>1961</S>בֹ֖קֶר<S>1242</S> י֥וֹם<S>3117</S> שֵׁנִֽי׃<S>8145</S> פ <br/>"
-        .transliterationToMd(dictReference, useWikiLinks = true) shouldBe
+        .transliterationToMd(DictDefinition.TopicType.HEBREW, dictReference, useWikiLinks = true) shouldBe
         "[[../Dict/H/7121|וַיִּקְרָ֧א]] [[../Dict/H/430|אֱלֹהִ֛ים]] [[../Dict/H/7549|לָֽרָקִ֖יעַ]] [[../Dict/H/8064|שָׁמָ֑יִם]] [[../Dict/H/1961|וַֽיְהִי־]][[../Dict/H/6153|עֶ֥רֶב]] " +
         "[[../Dict/H/1961|וַֽיְהִי־]][[../Dict/H/1242|בֹ֖קֶר]] [[../Dict/H/3117|י֥וֹם]] [[../Dict/H/8145|שֵׁנִֽי׃]] פ"
     }
@@ -35,10 +39,16 @@ class MdBibleBuilderTest : FeatureSpec({
       ("вайа́ас<S>6213</S> элои́м<S>430</S> э́т<S>853</S>аракиа́<S>7549</S> вайавдэ́л<S>914</S> бейн<S>996</S> ама́йим<S>4325</S> ашэ́р<S>834</S> мита́хат<S>8478</S> " +
         "лараки́а<S>7549</S> увейн<S>996</S> ама́йим<S>4325</S> ашэ́р<S>834</S> мэа́л<S>5921</S> лараки́а<S>7549</S> ва́йи<S>1961</S>хэ́н.<S>3651</S>"
         )
-        .transliterationToMd(dictReference, useWikiLinks = true) shouldBe
+        .transliterationToMd(DictDefinition.TopicType.HEBREW, dictReference, useWikiLinks = true) shouldBe
         "[[../Dict/H/6213|вайа́ас]] [[../Dict/H/430|элои́м]] [[../Dict/H/853|э́т]][[../Dict/H/7549|аракиа́]] [[../Dict/H/914|вайавдэ́л]] [[../Dict/H/996|бейн]] " +
         "[[../Dict/H/4325|ама́йим]] [[../Dict/H/834|ашэ́р]] [[../Dict/H/8478|мита́хат]] [[../Dict/H/7549|лараки́а]] [[../Dict/H/996|увейн]] " +
         "[[../Dict/H/4325|ама́йим]] [[../Dict/H/834|ашэ́р]] [[../Dict/H/5921|мэа́л]] [[../Dict/H/7549|лараки́а]] [[../Dict/H/1961|ва́йи]][[../Dict/H/3651|хэ́н]]."
+    }
+    scenario("convert greek text with strong numbers to markdown") {
+      "Βίβλος<S>976</S> γενέσεως<S>1078</S> Ἰησοῦ<S>2424</S> Χριστοῦ<S>5547</S> υἱοῦ<S>5207</S> Δαυεὶδ<S>1138</S> υἱοῦ<S>5207</S> Ἀβραάμ.<S>11</S>"
+        .transliterationToMd(DictDefinition.TopicType.GREEK, dictReference, useWikiLinks = true) shouldBe
+        "[[../Dict/G/976|Βίβλος]] [[../Dict/G/1078|γενέσεως]] [[../Dict/G/2424|Ἰησοῦ]] [[../Dict/G/5547|Χριστοῦ]] [[../Dict/G/5207|υἱοῦ]] " +
+        "[[../Dict/G/1138|Δαυεὶδ]] [[../Dict/G/5207|υἱοῦ]] [[../Dict/G/11|Ἀβραάμ]]."
     }
   }
 })

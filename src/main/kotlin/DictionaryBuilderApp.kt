@@ -1,12 +1,15 @@
 package io.github.alelk.obsidian_bible_utils
 
 import io.github.alelk.obsidian_bible_utils.client.ALittleHebrewTranslatorClient
-import io.github.alelk.obsidian_bible_utils.md_builder.DictReference
+import io.github.alelk.obsidian_bible_utils.md_builder.MdLinkProvider
+import io.github.alelk.obsidian_bible_utils.md_builder.MdReference
 import io.github.alelk.obsidian_bible_utils.md_builder.toMdDictionary
-import io.github.alelk.obsidian_bible_utils.model.DictDefinition
 import io.github.alelk.obsidian_bible_utils.store.MdDictStore
+import io.github.alelk.obsidian_bible_utils.store.fileName
 import io.github.alelk.obsidian_bible_utils.store.loadDictionary
 import io.github.alelk.obsidian_bible_utils.store.loadOrCreateHebrewTransliteratedDictionary
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
 import mu.KotlinLogging
 import java.io.File
 import java.util.*
@@ -32,10 +35,23 @@ suspend fun main(args: Array<String>) {
       transliterator
     )
 
-  val findDefinition = { refTopic: DictDefinition.Topic -> transliteratedDict.definitions.find { it.topic == refTopic } }
+  val bookNameById: Map<Int, String> = File(prop.getProperty("bible.bookNameById.file")).inputStream().let { Json.decodeFromStream(it) }
+
+  val mdLinkProvider = MdLinkProvider(
+    dictReference = { refTopic ->
+      val ref = transliteratedDict.definitions.find { it.topic == refTopic }?.let { MdReference(link = it.fileName, text = it.transliterations[0]) }
+      if (ref == null) log.warn { "Dictionary reference not found: $refTopic" }
+      ref
+    },
+    bibleReference = { book, chapter, verse, text ->
+      val ref = bookNameById[book]?.let { MdReference(link = "$it $chapter#$verse") }
+      if (ref == null) log.warn { "Bible reference not found: $book $chapter:$verse ($text)" }
+      ref
+    }
+  )
 
   val dictionariesTargetDir = File(prop.getProperty("dictionary.target-dir"))
-  val dictStore = MdDictStore(dictionariesTargetDir, findDefinition)
+  val dictStore = MdDictStore(dictionariesTargetDir, mdLinkProvider)
   dictStore.storeDictionary(transliteratedDict)
 
 }
