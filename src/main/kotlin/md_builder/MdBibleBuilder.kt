@@ -6,7 +6,7 @@ data class MdBook(val name: String, val chapters: List<MdChapter>)
 
 data class MdChapter(val number: Int, val name: String, val text: String)
 
-fun Bible.toMd(mainTranslation: BibleVariant.Translation, dictRef: (refTopic: DictDefinition.Topic) -> DictReference): List<MdBook> =
+fun Bible.toMd(mainTranslation: BibleVariant.Translation, dictRef: (refTopic: DictDefinition.Topic) -> DictReference?): List<MdBook> =
   books
     .sortedBy { it.id }
     .map { book ->
@@ -37,17 +37,17 @@ fun Bible.toMd(mainTranslation: BibleVariant.Translation, dictRef: (refTopic: Di
               appendLine("[$chapterName](${chapterName}.md)")
             }
             appendLine()
-            appendLine("#bible")
+            appendLine("#bible #bible_chapter #generated #unchanged")
           }
           MdChapter(number = chapter.number, name = "${bookInfo.name} ${chapter.number}", text = chapterText)
         }
       )
     }
 
-fun Chapter.toMdBody(mainTranslation: BibleVariant.Translation, dictReference: (refTopic: DictDefinition.Topic) -> DictReference): String =
+fun Chapter.toMdBody(mainTranslation: BibleVariant.Translation, dictReference: (refTopic: DictDefinition.Topic) -> DictReference?): String =
   verses.mapNotNull { it.toMd(mainTranslation, dictReference) }.joinToString("\n\n")
 
-fun Verse.toMd(mainTranslation: BibleVariant.Translation, dictReference: (refTopic: DictDefinition.Topic) -> DictReference): String? {
+fun Verse.toMd(mainTranslation: BibleVariant.Translation, dictReference: (refTopic: DictDefinition.Topic) -> DictReference?): String? {
   val mainTranslationText = this.text[mainTranslation] ?: return null
   return buildString {
     appendLine("##### $number")
@@ -67,16 +67,16 @@ fun Verse.toMd(mainTranslation: BibleVariant.Translation, dictReference: (refTop
 val r = "".replace(Regex("""<S>\d+</S>"""), "")
 
 fun String.skipStrongNumbers(): String =
-  replace(Regex("""<S>\d+</S>"""), " ")
+  replace(Regex("""<S>\d+</S>"""), "")
     .replace(Regex("""<br/>"""), " ")
     .replace(Regex("""\s+"""), " ")
     .trim()
 
-fun String.transliterationToMd(dictReference: (refTopic: DictDefinition.Topic) -> DictReference): String =
+fun String.transliterationToMd(dictReference: (refTopic: DictDefinition.Topic) -> DictReference?, useWikiLinks: Boolean = false): String =
   replace(Regex("""(?<word>[\p{L}\p{InCombiningDiacriticalMarks}\u0590-\u05fe]+)(?<delim>[:.])?<S>(?<strongNum>\d+)</S>""", RegexOption.IGNORE_CASE)) {
     val word = it.groups["word"]!!.value
     val delim = it.groups["delim"]?.value ?: ""
     val strongNum = it.groups["strongNum"]!!.value
     val dictRef = dictReference(DictDefinition.Topic(DictDefinition.TopicType.HEBREW, strongNum.toInt()))
-    """${dictRef.toMdLink(text = word)}$delim"""
+    if (dictRef != null) """${dictRef.toMdLink(text = word, wiki = useWikiLinks)}$delim""" else "$word$delim"
   }.skipStrongNumbers()

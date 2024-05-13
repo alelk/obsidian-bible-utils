@@ -63,6 +63,7 @@ suspend fun main(args: Array<String>) {
   mdBibleDir.mkdir()
   val dictReference = { refTopic: DictDefinition.Topic ->
     DictReference("../Dict/${refTopic.type.signature}/${refTopic.number}", "Text ${refTopic.number}")
+    null // fixme
   }
   lib.toMd(mainTranslation, dictReference).forEach { book ->
     log.info { "Build markdown for book ${book.name}..." }

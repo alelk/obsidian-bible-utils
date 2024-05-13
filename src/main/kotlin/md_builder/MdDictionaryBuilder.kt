@@ -40,43 +40,34 @@ data class MdDictDefinition(
   }
 
   val key: String = "$shortDefinition (${transliterations[0]})"
-  val fileName = "$key.md"
 
-  fun toMd(dictReference: (refTopic: DictDefinition.Topic) -> DictReference?): String =
+  fun toMd(dictReference: (refTopic: DictDefinition.Topic, from: MdDictDefinition) -> DictReference?): String =
     buildString {
-      val definition = definition.parseDictionaryDefinition(dictReference)
+      val definition = definition.parseDictionaryDefinition { refTopic -> dictReference(refTopic, this@MdDictDefinition) }
 
-      val category = definition.find<DefinitionPart.Category>()
+      val category = definition.find<DefinitionPart.Category>()?.text?.trim()
+      val partOfSpeech = definition.find<DefinitionPart.PartOfSpeech>()?.text?.trim()
 
-      appendLine("---")
-      appendLine("type: dictionary")
-      appendLine("tags:")
-      appendLine("  - dictionary_definition")
-      category?.let { appendLine("  - category: $it") }
-      appendLine("---")
-      appendLine()
-
-      appendLine("### $shortDefinition")
+      appendLine("### $topic: $shortDefinition")
       appendLine()
       val hebrewText = definition.find<DefinitionPart.HebrewText>()?.text ?: lexeme
       appendLine("> $hebrewText")
-      appendLine("\n")
+      appendLine()
 
-      val partOfSpeech = definition.find<DefinitionPart.PartOfSpeech>()?.text
       if (partOfSpeech != null) {
         appendLine("Часть речи: *$partOfSpeech*")
-        appendLine("\n")
+        appendLine()
       }
 
       if (category != null) {
-        appendLine("Категория: *$category*")
-        appendLine("\n")
+        appendLine("Категория: *${category}*")
+        appendLine()
       }
 
       appendLine("###### Произношение")
-      val pronunciation = listOfNotNull(definition.find<DefinitionPart.Pronunciation>()?.text, pronunciation, transliterations).distinct()
+      val pronunciation = listOfNotNull(definition.find<DefinitionPart.Pronunciation>()?.text, pronunciation, *transliterations.toTypedArray()).distinct()
       pronunciation.forEach { appendLine("- $it") }
-      appendLine("\n")
+      appendLine()
 
       definition.forEach { part ->
         when (part) {
@@ -99,6 +90,10 @@ data class MdDictDefinition(
           else -> {}
         }
       }
+
+      appendLine()
+      appendLine("---")
+      appendLine("#dictionary #dictionary_definition #generated #unchanged")
     }
 }
 
@@ -122,7 +117,7 @@ fun String.replaceDictReferences(dictReference: (refTopic: DictDefinition.Topic)
   referenceRegex.replace(this) { matchResult ->
     val ref = dictReference(DictDefinition.Topic.parse(matchResult.groups["reference"]!!.value))
     val text = ref?.text ?: matchResult.groups["text"]!!.value
-    ref?.toMdLink(text = text) ?: text
+    ref?.toMdLink(text = text, wiki = true) ?: text
   }
 
 fun String.parseDictionaryDefinition(dictReference: (refTopic: DictDefinition.Topic) -> DictReference?) =

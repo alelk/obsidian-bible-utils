@@ -4,6 +4,7 @@ import io.github.alelk.obsidian_bible_utils.client.ALittleHebrewTranslatorClient
 import io.github.alelk.obsidian_bible_utils.md_builder.DictReference
 import io.github.alelk.obsidian_bible_utils.md_builder.toMdDictionary
 import io.github.alelk.obsidian_bible_utils.model.DictDefinition
+import io.github.alelk.obsidian_bible_utils.store.MdDictStore
 import io.github.alelk.obsidian_bible_utils.store.loadDictionary
 import io.github.alelk.obsidian_bible_utils.store.loadOrCreateHebrewTransliteratedDictionary
 import mu.KotlinLogging
@@ -31,18 +32,10 @@ suspend fun main(args: Array<String>) {
       transliterator
     )
 
-  val dictReferenceRelativePath = prop.getProperty("dictionary.strong-dict.bible-chapter.relative-path")
-  val dictReference = { refTopic: DictDefinition.Topic ->
-    val def = transliteratedDict.definitions.find { it.topic == refTopic }
-    def?.let { DictReference("$dictReferenceRelativePath${it.fileName}", it.transliterations[0]) }
-  }
+  val findDefinition = { refTopic: DictDefinition.Topic -> transliteratedDict.definitions.find { it.topic == refTopic } }
 
-  val strongDictTargetDir = File(prop.getProperty("dictionary.strong-dict.target-dir"))
-  transliteratedDict.definitions.forEach { definition ->
-    val mdText = definition.toMd(dictReference)
-    strongDictTargetDir.mkdirs()
-    val mdFile = File(strongDictTargetDir, definition.fileName)
-    mdFile.writeText(mdText)
-  }
+  val dictionariesTargetDir = File(prop.getProperty("dictionary.target-dir"))
+  val dictStore = MdDictStore(dictionariesTargetDir, findDefinition)
+  dictStore.storeDictionary(transliteratedDict)
 
 }
