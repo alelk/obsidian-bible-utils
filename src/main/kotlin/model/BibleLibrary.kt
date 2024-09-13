@@ -18,13 +18,13 @@ fun Bible.merge(other: Bible, strict: Boolean = true): Bible {
     }.sortedBy { it.id }
   }
 
-  val nextBookInfo = (booksInfoByBibleVariant.keys + other.booksInfoByBibleVariant.keys).associateWith { variant ->
-    ((booksInfoByBibleVariant[variant] ?: emptyList()) + (other.booksInfoByBibleVariant[variant] ?: emptyList()))
+  val nextBookInfo = (this.booksInfoByBibleVariant.keys + other.booksInfoByBibleVariant.keys).associateWith { variant ->
+    ((this.booksInfoByBibleVariant[variant] ?: emptyList()) + (other.booksInfoByBibleVariant[variant] ?: emptyList()))
       .distinct()
       .sortedBy { it.id }
   }
   return kotlin.runCatching {
-    Bible(books.merge(other.books), nextBookInfo)
+    Bible(this.books.merge(other.books), nextBookInfo)
   }.onFailure { e -> throw UnsupportedOperationException("Error merging books: ${e.message}", e) }.getOrThrow()
 }
 
@@ -33,11 +33,11 @@ data class BookInfo(val id: Int, val name: String, val variant: BibleVariant)
 
 @Serializable
 data class Book(val id: Int, val chapters: List<Chapter>, val attrs: Map<String, String> = emptyMap()) {
-  fun withAttr(attr: Pair<String, String>): Book = copy(attrs = attrs + attr)
+  fun withAttr(attr: Pair<String, String>): Book = this.copy(attrs = this.attrs + attr)
 }
 
 fun Book.merge(other: Book, strict: Boolean = true): Book {
-  require(id == other.id) { "Book ids are not equal: $id != ${other.id}" }
+  require(this.id == other.id) { "Book ids are not equal: ${this.id} != ${other.id}" }
   fun List<Chapter>.merge(other: List<Chapter>): List<Chapter> {
     require(this.map { it.number }.let { it == it.distinct() }) { "Chapter numbers are not unique: ${this.map { it.number }.joinToString(",")}" }
     require(other.map { it.number }.let { it == it.distinct() }) { "Chapter numbers are not unique: ${other.map { it.number }.joinToString(",")}" }
@@ -46,15 +46,15 @@ fun Book.merge(other: Book, strict: Boolean = true): Book {
     }.sortedBy { it.number }
   }
   return kotlin.runCatching {
-    require(chapters.size == other.chapters.size) { "Chapters count are not equal: ${chapters.size} != ${other.chapters.size}" }
-    require(chapters.map { it.number }.toSet() == other.chapters.map { it.number }.toSet()) {
-      "Chapter numbers numbers are not equal: ${chapters.map { it.number }.joinToString(",")}"
+    require(this.chapters.size == other.chapters.size) { "Chapters count are not equal: ${this.chapters.size} != ${other.chapters.size}" }
+    require(this.chapters.map { it.number }.toSet() == other.chapters.map { it.number }.toSet()) {
+      "Chapter numbers numbers are not equal: ${this.chapters.map { it.number }.joinToString(",")}"
     }
-    Book(id, chapters.merge(other.chapters))
+    Book(this.id, this.chapters.merge(other.chapters))
   }.recover { e ->
-    if (strict) throw UnsupportedOperationException("Error merging books $id: ${e.message}", e)
+    if (strict) throw UnsupportedOperationException("Error merging books ${this.id}: ${e.message}", e)
     else {
-      val msg = "Error merging books $id: ${e.message}. Skip merging."
+      val msg = "Error merging books ${this.id}: ${e.message}. Skip merging."
       log.warn { msg }
       this.withAttr("error" to msg)
     }
@@ -63,32 +63,32 @@ fun Book.merge(other: Book, strict: Boolean = true): Book {
 
 @Serializable
 data class Chapter(val number: Int, val verses: List<Verse>, val attrs: Map<String, String> = emptyMap()) {
-  fun withAttr(attr: Pair<String, String>): Chapter = copy(attrs = attrs + attr)
+  fun withAttr(attr: Pair<String, String>): Chapter = this.copy(attrs = this.attrs + attr)
 }
 
 fun Chapter.merge(other: Chapter, strict: Boolean = true): Chapter {
-  require(number == other.number) { "Chapter numbers are not equal: $number != ${other.number}" }
+  require(this.number == other.number) { "Chapter numbers are not equal: ${this.number} != ${other.number}" }
+  fun List<Verse>.merge(other: List<Verse>): List<Verse> {
+    require(this.map { it.number }.let { it == it.distinct() }) { "Verse numbers are not unique: ${this.map { it.number }.joinToString(",")}" }
+    require(other.map { it.number }.let { it == it.distinct() }) { "Verse numbers are not unique: ${other.map { it.number }.joinToString(",")}" }
+    val thisVariants = this.flatMap { it.text.keys }.toSet()
+    val otherVariants = other.flatMap { it.text.keys }.toSet()
+    if (strict)
+      require(thisVariants.none { it in otherVariants }) { "Verse variants are not unique: ${thisVariants.intersect(otherVariants).joinToString(",")}" }
+    return (this + other).groupBy { it.number }.map { (_, verses) ->
+      verses.reduce(Verse::plus)
+    }.sortedBy { it.number }
+  }
   return kotlin.runCatching {
-    require(verses.size == other.verses.size) { "Verses count are not equal: ${verses.size} != ${other.verses.size}" }
-    require(verses.map { it.number }.toSet() == other.verses.map { it.number }.toSet()) { "Verse numbers are not equal" }
-    fun List<Verse>.merge(other: List<Verse>): List<Verse> {
-      require(this.map { it.number }.let { it == it.distinct() }) { "Verse numbers are not unique: ${this.map { it.number }.joinToString(",")}" }
-      require(other.map { it.number }.let { it == it.distinct() }) { "Verse numbers are not unique: ${other.map { it.number }.joinToString(",")}" }
-      val thisVariants = this.flatMap { it.text.keys }.toSet()
-      val otherVariants = other.flatMap { it.text.keys }.toSet()
-      if (strict)
-        require(thisVariants.none { it in otherVariants }) { "Verse variants are not unique: ${thisVariants.intersect(otherVariants).joinToString(",")}" }
-      return (this + other).groupBy { it.number }.map { (_, verses) ->
-        verses.reduce(Verse::plus)
-      }.sortedBy { it.number }
-    }
-    Chapter(number, verses.merge(other.verses))
+    require(this.verses.size == other.verses.size) { "Verses count are not equal: ${this.verses.size} != ${other.verses.size}" }
+    require(this.verses.map { it.number }.toSet() == other.verses.map { it.number }.toSet()) { "Verse numbers are not equal" }
+    Chapter(this.number, this.verses.merge(other.verses))
   }.recover { e ->
-    if (strict) throw UnsupportedOperationException("Error merging chapters $number: ${e.message}", e)
+    if (strict) throw UnsupportedOperationException("Error merging chapters ${this.number}: ${e.message}", e)
     else {
-      val msg = "Error merging chapters $number: ${e.message}. Skip merging."
+      val msg = "Error merging chapters ${this.number}: ${e.message}. Please recheck verses mapping!!!"
       log.warn { msg }
-      this.withAttr("error" to msg)
+      Chapter(this.number, this.verses.merge(other.verses)).withAttr("error" to msg)
     }
   }.getOrThrow()
 }
@@ -96,11 +96,11 @@ fun Chapter.merge(other: Chapter, strict: Boolean = true): Chapter {
 @Serializable(with = BibleVariantSerializer::class)
 sealed interface BibleVariant {
   data class Translation(val translationSlug: String) : BibleVariant {
-    override fun toString(): String = "translation-$translationSlug"
+    override fun toString(): String = "translation-${this.translationSlug}"
   }
 
   data class Transliteration(val signature: String) : BibleVariant {
-    override fun toString(): String = "transliteration-$signature"
+    override fun toString(): String = "transliteration-${this.signature}"
   }
 
   companion object {
@@ -119,9 +119,9 @@ data class Verse(val number: Int, val text: Map<BibleVariant, Data>, val attrs: 
   data class Data(val text: String, val comment: String? = null)
 
   operator fun plus(other: Verse): Verse {
-    require(number == other.number) { "Verse numbers are not equal: $number != ${other.number}" }
-    return Verse(number, text + other.text)
+    require(this.number == other.number) { "Verse numbers are not equal: ${this.number} != ${other.number}" }
+    return Verse(this.number, this.text + other.text)
   }
 
-  fun withAttr(attr: Pair<String, String>): Verse = copy(attrs = attrs + attr)
+  fun withAttr(attr: Pair<String, String>): Verse = this.copy(attrs = this.attrs + attr)
 }

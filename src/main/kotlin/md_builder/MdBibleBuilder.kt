@@ -80,8 +80,6 @@ fun Verse.toMd(
   }
 }
 
-val r = "".replace(Regex("""<S>\d+</S>"""), "")
-
 fun String.skipStrongNumbers(): String =
   replace(Regex("""<S>\d+</S>"""), "")
     .replace(Regex("""<br/>"""), " ")
